@@ -18,7 +18,7 @@
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; 
             background: var(--bg-color); 
             color: var(--text-color); 
-            padding: 20px; 
+            padding: 40px 20px; 
             margin: 0;
             display: flex;
             flex-direction: column;
@@ -28,11 +28,11 @@
         }
 
         h1 { 
-            font-size: 22px; 
+            font-size: 26px; 
             font-weight: 300; 
             letter-spacing: 0.15em; 
             color: var(--text-bright); 
-            margin: 10px 0 5px 0; 
+            margin: 0 0 5px 0; 
             text-transform: uppercase;
             text-align: center;
         }
@@ -41,34 +41,28 @@
             font-size: 11px;
             letter-spacing: 0.1em;
             color: var(--accent-color);
-            margin-bottom: 25px;
+            margin-bottom: 40px;
             text-align: center;
         }
 
         .app-container {
-            display: flex;
-            flex-direction: column;
-            gap: 25px;
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 30px;
             width: 100%;
-            max-width: 1000px;
-            align-items: center;
+            max-width: 1400px;
+            justify-content: center;
         }
 
-        @media (min-width: 768px) {
+        @media (min-width: 1024px) {
             .app-container {
-                flex-direction: row;
-                justify-content: center;
-                align-items: flex-start;
+                grid-template-columns: minmax(320px, 450px) minmax(280px, 38px) 1fr;
+                align-items: start;
             }
-        }
-
-        /* 左側のビジュアルエリア用カラム */
-        .visual-column {
-            display: flex;
-            flex-direction: column;
-            gap: 25px;
-            width: 100%;
-            max-width: 450px;
+            /* PC時に3カラムが綺麗に並ぶよう指定 */
+            .app-container > :nth-child(1) { grid-column: 1; }
+            .app-container > :nth-child(2) { grid-column: 2; }
+            .app-container > :nth-child(3) { grid-column: 3; }
         }
 
         .panel { 
@@ -77,12 +71,11 @@
             border-radius: 12px; 
             box-shadow: 0 15px 35px rgba(0,0,0,0.5);
             width: 100%;
-            max-width: 450px;
             box-sizing: border-box;
         }
 
         .control-group { 
-            margin-bottom: 20px; 
+            margin-bottom: 24px; 
         }
 
         label { 
@@ -132,7 +125,7 @@
             background: #121821;
             border: 1px solid rgba(197, 160, 89, 0.3);
             color: var(--text-bright);
-            padding: 8px;
+            padding: 10px;
             border-radius: 4px;
             box-sizing: border-box;
             font-family: monospace;
@@ -145,7 +138,7 @@
 
         .file-dropzone {
             border: 1px dashed rgba(197, 160, 89, 0.4);
-            padding: 20px;
+            padding: 25px 20px;
             text-align: center;
             border-radius: 6px;
             cursor: pointer;
@@ -167,7 +160,7 @@
             height: 6px;
             border-radius: 3px;
             outline: none;
-            margin: 10px 0;
+            margin: 12px 0;
         }
         input[type="range"]::-webkit-slider-thumb {
             -webkit-appearance: none;
@@ -192,7 +185,7 @@
             font-size: 13px;
             color: var(--text-color);
             text-align: center;
-            margin-top: 5px;
+            margin-top: 6px;
             letter-spacing: 0.05em;
         }
         .age-display strong {
@@ -243,9 +236,9 @@
         
         .info-text { 
             font-size: 11px; 
-            color: #666; 
+            color: #7a828a; 
             text-align: center; 
-            margin-top: 15px; 
+            margin-top: 20px; 
             line-height: 1.6;
         }
         
@@ -269,10 +262,10 @@
             margin-bottom: 20px;
         }
         #simCanvas {
-            cursor: grab; /* 掴めることを示す */
+            cursor: grab;
         }
         #simCanvas:active {
-            cursor: grabbing; /* 掴んでいる状態を示す */
+            cursor: grabbing;
         }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
     </style>
@@ -284,18 +277,16 @@
 
     <div class="app-container">
         
-        <div class="visual-column">
-            <div id="canvasContainer">
-                <canvas id="moonCanvas" width="2520" height="2992"></canvas>
-            </div>
+        <div id="canvasContainer">
+            <canvas id="moonCanvas" width="2520" height="2992"></canvas>
+        </div>
 
-            <div class="panel" style="padding: 20px;">
-                <label style="text-align: center; margin-bottom: 15px;">Celestial Sphere Simulator</label>
-                <div style="text-align: center; font-size: 10px; color: var(--accent-color); margin-bottom: 10px; opacity: 0.8; letter-spacing: 0.1em;">
-                    <span style="font-size: 14px; vertical-align: middle;">⟳</span> 左右にドラッグして時間を回す
-                </div>
-                <canvas id="simCanvas" width="800" height="800" style="width: 100%; background: #121821; border-radius: 6px; border: 1px solid rgba(197, 160, 89, 0.2);"></canvas>
+        <div class="panel" style="padding: 20px;">
+            <label style="text-align: center; margin-bottom: 15px;">Celestial Sphere Simulator</label>
+            <div style="text-align: center; font-size: 10px; color: var(--accent-color); margin-bottom: 12px; opacity: 0.8; letter-spacing: 0.1em;">
+                <span style="font-size: 14px; vertical-align: middle;">⟳</span> 左右にドラッグして時間を回す
             </div>
+            <canvas id="simCanvas" width="800" height="800" style="width: 100%; background: #121821; border-radius: 6px; border: 1px solid rgba(197, 160, 89, 0.2);"></canvas>
         </div>
 
         <div class="panel">
@@ -318,7 +309,6 @@
                     <input type="file" id="fileInput" accept="image/*">
                 </div>
             </div>
-
 
             <div class="control-group">
                 <label>2. Canvas Resolution (px)</label>
@@ -397,7 +387,7 @@
         const progressText = document.getElementById('progressText');
         const lockCheckbox = document.getElementById('lockCheckbox');
         const rotateTextureCheckbox = document.getElementById('rotateTextureCheckbox');
-        const colorSimCheckbox = document.getElementById('colorSimCheckbox'); // ★追加
+        const colorSimCheckbox = document.getElementById('colorSimCheckbox');
 
 
         const inputWidth = document.getElementById('inputWidth');
@@ -458,7 +448,6 @@
             draw(parseFloat(slider.value));
         });
 
-        // ★追加
         colorSimCheckbox.addEventListener('change', () => {
             draw(parseFloat(slider.value));
         });
@@ -503,7 +492,6 @@
             }
         }
 
-        // 天体モデルによる月の傾き（ラジアン）計算
         function calculateMoonTilt(phase, timeHour) {
             let moonHourPosition = timeHour - (phase / 28) * 24;
             while (moonHourPosition < 0) moonHourPosition += 24;
@@ -513,21 +501,19 @@
             return tiltDeg * (Math.PI / 180);
         }
 
-        // --- 空の色を計算する関数（完全対称・クールトーン版） ---
         function getSkyColor(hour) {
             const stops = [
-                
-                { h: 0,   r: 50,  g: 60,  b: 90 },   // 北中（少し明るいネイビー）
-                { h: 4.5, r: 50,  g: 70,  b: 100 },   // 夜明け前
-                { h: 6.0, r: 50,  g: 70,  b: 120 },   // 日の出（ブルーアワーの非常に深い濃紺）
-                { h: 6.5, r: 60,  g: 70,  b: 150 },   // 日の出直後（少しずつ明るい濃紺へ）
-                { h: 8.0, r: 100, g: 150, b: 210 },  // 朝（深みのある青から徐々に明るく）
-                { h: 12.0, r: 160, g: 215, b: 255 }, // 南中（明るく白っぽく抜けた青空）
-                { h: 16.0, r: 100, g: 150, b: 210 }, // 午後（少しずつ深みのある青へ沈む）
-                { h: 17.5, r: 60,  g: 70,  b: 150 },  // 日の入り間近（空全体が暗い青・濃紺へ）
-                { h: 18.0, r: 50,  g: 70,  b: 120 },  // 日没直後（ここも合わせる）
-                { h: 19.5, r: 50,  g: 70,  b: 100 },  // 夜の始まり
-                { h: 24,   r: 50,  g: 60,  b: 90 }    // 北中
+                { h: 0,   r: 50,  g: 60,  b: 90 },
+                { h: 4.5, r: 50,  g: 70,  b: 100 },
+                { h: 6.0, r: 50,  g: 70,  b: 120 },
+                { h: 6.5, r: 60,  g: 70,  b: 150 },
+                { h: 8.0, r: 100, g: 150, b: 210 },
+                { h: 12.0, r: 160, g: 215, b: 255 },
+                { h: 16.0, r: 100, g: 150, b: 210 },
+                { h: 17.5, r: 60,  g: 70,  b: 150 },
+                { h: 18.0, r: 50,  g: 70,  b: 120 },
+                { h: 19.5, r: 50,  g: 70,  b: 100 },
+                { h: 24,   r: 50,  g: 60,  b: 90 }
             ];
 
             let start = stops[0], end = stops[stops.length - 1];
@@ -549,30 +535,26 @@
             return `rgb(${r}, ${g}, ${b})`;
         }
 
-        // --- 全天球シミュレーターの描画（二重軌道版） ---
         function drawSimulator(phase, timeHour) {
             const w = simCanvas.width;
             const h = simCanvas.height;
             const cx = w / 2;
             const cy = h / 2;
-            const rSun = (w / 2) - 80;   // 太陽の軌道半径（外）
-            const rMoon = rSun * 0.75;   // 月の軌道半径（内）
+            const rSun = (w / 2) - 80;
+            const rMoon = rSun * 0.75;
 
             simCtx.clearRect(0, 0, w, h);
 
-            // 1. 背景色の塗りつぶし
             simCtx.beginPath();
             simCtx.arc(cx, cy, rSun + 50, 0, Math.PI * 2);
             simCtx.fillStyle = getSkyColor(timeHour);
             simCtx.fill();
 
-            // 地下を暗く
             simCtx.beginPath();
             simCtx.arc(cx, cy, rSun + 50, 0, Math.PI);
             simCtx.fillStyle = 'rgba(30, 30, 30, 0.2)';
             simCtx.fill();
 
-            // 軌道ガイド線
             simCtx.beginPath();
             simCtx.arc(cx, cy, rSun, 0, Math.PI * 2);
             simCtx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
@@ -582,21 +564,18 @@
             simCtx.strokeStyle = 'rgba(255, 255, 255, 0.05)';
             simCtx.stroke();
 
-            // 2. 座標計算
             const sunAngleRad = (timeHour - 18) * 15 * (Math.PI / 180);
             const sunPos = {
                 x: cx + rSun * Math.cos(sunAngleRad),
                 y: cy + rSun * Math.sin(sunAngleRad)
             };
 
-            // 月の角度：太陽の角度からPHASE分だけ遅れる
             const moonAngleRad = sunAngleRad - (phase / 28) * 2 * Math.PI;
             const moonPos = {
                 x: cx + rMoon * Math.cos(moonAngleRad),
                 y: cy + rMoon * Math.sin(moonAngleRad)
             };
 
-            // 光のベクトル線
             simCtx.beginPath();
             simCtx.moveTo(sunPos.x, sunPos.y);
             simCtx.lineTo(moonPos.x, moonPos.y);
@@ -605,8 +584,6 @@
             simCtx.stroke();
             simCtx.setLineDash([]);
 
-            // 3. 描画
-            // 月の描画
             simCtx.beginPath();
             simCtx.arc(moonPos.x, moonPos.y, 16, 0, Math.PI * 2);
             simCtx.fillStyle = (moonPos.y > cy) ? '#0b0c10' : '#1f2833';
@@ -614,7 +591,6 @@
             simCtx.strokeStyle = (moonPos.y > cy) ? '#444' : '#fff';
             simCtx.stroke();
 
-            // 太陽の描画
             simCtx.beginPath();
             simCtx.arc(sunPos.x, sunPos.y, 20, 0, Math.PI * 2);
             simCtx.fillStyle = (sunPos.y > cy) ? '#66532d' : '#f9d71c';
@@ -718,23 +694,18 @@
             const ictx = imgBuffer.getContext('2d');
 
             if (userImage) {
-                // 月の直径を計算
                 const moonDiameter = r * 2;
                 const imgRatio = userImage.width / userImage.height;
                 let renderW, renderH;
 
-                // 月の円形（正方形のバウンディングボックス）にぴったり合わせる計算
                 if (imgRatio > 1) {
-                    // 横長画像：高さを月の直径に合わせ、横幅を比率で伸ばす
                     renderH = moonDiameter;
                     renderW = moonDiameter * imgRatio;
                 } else {
-                    // 縦長・正方形画像：横幅を月の直径に合わせ、高さを比率で伸ばす
                     renderW = moonDiameter;
                     renderH = moonDiameter / imgRatio;
                 }
 
-                // テクスチャ回転ONの場合は、描画前にコンテキストを回転させる
                 ictx.save();
                 if (shouldRotateTexture) {
                     ictx.translate(cx, cy);
@@ -753,13 +724,10 @@
                 ictx.textBaseline = 'middle';
                 ictx.fillText('Source Image Missing', cx, cy);
             }
-            // ==========================================
-            // ★ ここから月の色シミュレーションを追加 ★
-            // ==========================================
+
             if (colorSimCheckbox.checked) {
                 ictx.save();
                 
-                // 月と太陽の現在の天球座標（Y軸）を計算
                 let moonHour = timeHour - (step / 28) * 24;
                 while (moonHour < 0) moonHour += 24;
                 while (moonHour >= 24) moonHour -= 24;
@@ -767,20 +735,16 @@
                 const moonAngleRad = (moonHour - 18) * 15 * (Math.PI / 180);
                 const sunAngleRad = (timeHour - 18) * 15 * (Math.PI / 180);
                 
-                // Yがプラスなら地平線より下（沈んでいる）
                 const moonY = Math.sin(moonAngleRad); 
                 const sunY = Math.sin(sunAngleRad);   
 
                 ictx.globalCompositeOperation = 'source-atop';
                 
                 if (moonY > 0) {
-                    // 月が地平線の下に沈んでいる状態（影のように暗く）
                     ictx.fillStyle = 'rgba(15, 15, 15, 0.5)';
                 } else if (sunY > 0) {
-                    // 夜（月が上、太陽が下）：ほんのり黄色く発光感を足す
                     ictx.fillStyle = 'rgba(255, 240, 150, 0.5)';
                 } else {
-                    // 昼（月も太陽も上）：青空に溶け込むように白くウォッシュアウト
                     ictx.fillStyle = 'rgba(240, 240, 240, 0.6)';
                 }
                 
@@ -842,48 +806,38 @@
 
             ctx.drawImage(shadowBuffer, 0, 0);
         }
-let isDragging = false;
-        let lastMouseX = 0; // 前回のマウス位置を保持
 
-        // --- ドラッグ操作ロジック（回転ホイール型） ---
+        let isDragging = false;
+        let lastMouseX = 0;
+
         function handlePointerMove(e) {
             if (!isDragging) return;
             e.preventDefault();
 
             const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-            
-            // 今回の移動量を計算（前回の位置との差分）
             const deltaX = clientX - lastMouseX;
-            
-            // 移動量を角度の変化量に変換（係数は適宜調整：値を大きくすると速く回る）
             const rotationSpeed = 0.5; 
             const angleChange = deltaX * rotationSpeed * (Math.PI / 180);
             
-            // 現在の時間を角度(rad)に変換し、変化量を加算
             let currentHour = parseFloat(timeSlider.value);
             let currentAngle = (currentHour - 12) * (Math.PI / 12);
             let newAngle = currentAngle + angleChange;
             
-            // 時間に再変換
             let newHour = 12 + (newAngle * (12 / Math.PI));
             newHour = (newHour + 24) % 24;
 
-            // スライダーと表示を更新
             timeSlider.value = newHour;
             const hours = Math.floor(newHour);
             const minutes = Math.floor((newHour % 1) * 60);
             timeVal.innerText = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
             
             draw(parseFloat(slider.value));
-
-            // 現在の位置を更新
             lastMouseX = clientX;
         }
 
-        // --- 操作のリスナー設定 ---
         simCanvas.addEventListener('mousedown', (e) => {
             isDragging = true;
-            lastMouseX = e.clientX; // 開始位置を記録
+            lastMouseX = e.clientX;
         });
 
         window.addEventListener('mousemove', (e) => {
@@ -894,7 +848,6 @@ let isDragging = false;
             isDragging = false;
         });
         
-        // タッチ操作用
         simCanvas.addEventListener('touchstart', (e) => {
             isDragging = true;
             lastMouseX = e.touches[0].clientX;
