@@ -603,7 +603,8 @@
         }
 
 
-        // 季節の日の出・日の入りと完全に一致する全天球シミュレーターの描画
+
+        // 時間軸を季節の日の出入りに合わせて伸縮させる全天球シミュレーター
         function drawSimulator(phase, timeHour) {
             const w = simCanvas.width;
             const h = simCanvas.height;
@@ -614,29 +615,44 @@
 
             simCtx.clearRect(0, 0, w, h);
 
-            // 季節に応じた日没・日の出の傾き（境界線）を計算
+            // 季節に応じた日の出・日の入り時刻の取得
             let month = parseInt(monthSlider.value);
             let seasonOffset = Math.sin(((month - 3.2) / 12) * 2 * Math.PI); 
-            // 18:00(水平)を基準とした、日の入り時刻のズレを角度(rad)に換算
-            let sunsetOffsetRad = (1.1 * seasonOffset) * 15 * (Math.PI / 180);
+            let sunrise = 5.61 - (1.1 * seasonOffset); 
+            let sunset = 18.39 + (1.1 * seasonOffset); 
+
+            // --- ノンリニア時間マッピング（時計時間をシミュレーター上の幾何学角度へ変換） ---
+            let timeHourMapped = 18.0; // 描画用の仮想的な「位置時間」
+
+            if (timeHour >= 12.0 && timeHour < sunset) {
+                // 昼〜日没までの区間（真上[12時] から 右端[18時位置] までを伸縮）
+                let pct = (timeHour - 12.0) / (sunset - 12.0);
+                timeHourMapped = 12.0 + (pct * 6.0);
+            } else if (timeHour >= sunset && timeHour < 24.0) {
+                // 日没〜深夜0時までの区間（右端[18時位置] から 真下[24時位置] までを伸縮）
+                let pct = (timeHour - sunset) / (24.0 - sunset);
+                timeHourMapped = 18.0 + (pct * 6.0);
+            } else if (timeHour >= 0.0 && timeHour < sunrise) {
+                // 深夜0時〜日の出までの区間（真下[0時位置] から 左端[6時位置] までを伸縮）
+                let pct = (timeHour - 0.0) / (sunrise - 0.0);
+                timeHourMapped = 0.0 + (pct * 6.0);
+            } else {
+                // 日の出〜正午までの区間（左端[6時位置] から 真上[12時位置] までを伸縮）
+                let pct = (timeHour - sunrise) / (12.0 - sunrise);
+                timeHourMapped = 6.0 + (pct * 6.0);
+            }
 
             // 1. 背景色の塗りつぶし（空の色）
-            simCtx.save();
             simCtx.beginPath();
             simCtx.arc(cx, cy, rSun + 50, 0, Math.PI * 2);
             simCtx.fillStyle = getSkyColor(timeHour);
             simCtx.fill();
-            simCtx.restore();
 
-            // 2. 地下の夜の影エリアを季節の日の出入り角度に合わせて動的に傾ける
-            simCtx.save();
-            simCtx.translate(cx, cy);
-            simCtx.rotate(sunsetOffsetRad); // 季節による日の出入りの傾きを反映
+            // 2. 地下の夜の影エリア（常に完全に真横・水平で固定）
             simCtx.beginPath();
-            simCtx.arc(0, 0, rSun + 50, 0, Math.PI); // 下半分を影にする
-            simCtx.fillStyle = 'rgba(15, 20, 30, 0.4)'; // 違和感のない暗さの夜影
+            simCtx.arc(cx, cy, rSun + 50, 0, Math.PI); 
+            simCtx.fillStyle = 'rgba(15, 20, 30, 0.4)'; 
             simCtx.fill();
-            simCtx.restore();
 
             // 軌道ガイド線
             simCtx.beginPath();
@@ -648,13 +664,14 @@
             simCtx.strokeStyle = 'rgba(255, 255, 255, 0.05)';
             simCtx.stroke();
 
-            // 太陽と月の座標計算
-            const sunAngleRad = (timeHour - 18) * 15 * (Math.PI / 180);
+            // 3. 伸縮された角度（timeHourMapped）を使って太陽と月の座標を計算
+            const sunAngleRad = (timeHourMapped - 18) * 15 * (Math.PI / 180);
             const sunPos = {
                 x: cx + rSun * Math.cos(sunAngleRad),
                 y: cy + rSun * Math.sin(sunAngleRad)
             };
 
+            // 月の幾何学的角度（太陽の位置から現在の満ち欠け角度分だけ遅らせる）
             const moonAngleRad = sunAngleRad - (phase / 28) * 2 * Math.PI;
             const moonPos = {
                 x: cx + rMoon * Math.cos(moonAngleRad),
@@ -676,9 +693,8 @@
             simCtx.translate(moonPos.x, moonPos.y);
             simCtx.rotate(currentTiltRad);
             
-            // 月が影に入っているかどうかの判定も季節の傾きに同期
-            let checkMoonRad = moonAngleRad - sunsetOffsetRad;
-            let isMoonInShadow = Math.sin(checkMoonRad) > 0;
+            // 地平線（y=cy）より下にあるか否かで明暗を反転（完全水平に同期）
+            let isMoonInShadow = moonPos.y > cy;
 
             simCtx.beginPath();
             simCtx.arc(0, 0, 16, 0, Math.PI * 2);
@@ -695,8 +711,8 @@
             simCtx.stroke();
             simCtx.restore();
 
-            // 太陽の描画
-            let isSunInShadow = Math.sin(sunAngleRad - sunsetOffsetRad) > 0;
+            // 太陽の描画（地平線 y=cy を跨いだ瞬間にカチッと昼夜が切り替わる）
+            let isSunInShadow = sunPos.y > cy;
             simCtx.beginPath();
             simCtx.arc(sunPos.x, sunPos.y, 20, 0, Math.PI * 2);
             simCtx.fillStyle = isSunInShadow ? '#66532d' : '#f9d71c';
@@ -981,12 +997,15 @@
         let isDragging = false;
         let lastMouseX = 0;
 
+        // シミュレーターの直接ドラッグ操作ロジック
         function handlePointerMove(e) {
             if (!isDragging) return;
             e.preventDefault();
 
             const clientX = e.touches ? e.touches[0].clientX : e.clientX;
             const deltaX = clientX - lastMouseX;
+            
+            // 時間の進み幅を一律の等速ではなく、直感的になるよう係数をマッピング
             const rotationSpeed = 0.5; 
             const angleChange = deltaX * rotationSpeed * (Math.PI / 180);
             
@@ -1000,11 +1019,17 @@
             timeSlider.value = newHour;
             const hours = Math.floor(newHour);
             const minutes = Math.floor((newHour % 1) * 60);
+            
+            const targetTimeVal = document.getElementById('timeVal');
+            if (targetTimeVal) {
+                targetTimeVal.innerText = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+            }
             timeVal.innerText = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
             
             draw(parseFloat(slider.value));
             lastMouseX = clientX;
         }
+
 
         simCanvas.addEventListener('mousedown', (e) => {
             isDragging = true;
