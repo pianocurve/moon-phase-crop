@@ -655,15 +655,113 @@
             triggerDownload(dataUrl, `moon_phase_${fileSuffix}_t${timeSuffix}.png`);
         });
 
-        bulkDownloadBtn.addEventListener('click', async () => {
+bulkDownloadBtn.addEventListener('click', async () => {
             progressOverlay.style.display = 'flex';
             const zip = new JSZip();
             const currentSelectedStep = parseFloat(slider.value);
 
+            // --- 一括エクスポート専用のクリーンな描画関数 ---
+            function drawPurePhase(step) {
+                const cx = canvas.width / 2;
+                const cy = canvas.height / 2;
+                const r = (Math.min(canvas.width, canvas.height) / 2) * 0.87; 
+                const glowRatio = parseInt(glowSlider.value) / 100;
+
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+                if (glowRatio === 0 && step === 0) return;
+
+                // 右から左へ素直に満ち欠けするマスクパス (回転なし)
+                function pathMoonPure(context) {
+                    const radians = step * (Math.PI / 14);
+                    const phase = -Math.cos(radians);
+                    const isWaxing = step <= 14; 
+                    
+                    context.beginPath();
+                    context.arc(cx, cy, r, -Math.PI/2, Math.PI/2, !isWaxing);
+                    context.ellipse(cx, cy, Math.abs(phase) * r, r, 0, Math.PI/2, -Math.PI/2, isWaxing ? (phase < 0) : (phase > 0));
+                    context.closePath();
+                }
+
+                const imgBuffer = document.createElement('canvas');
+                imgBuffer.width = canvas.width;
+                imgBuffer.height = canvas.height;
+                const ictx = imgBuffer.getContext('2d');
+
+                if (userImage) {
+                    const moonDiameter = r * 2;
+                    const imgRatio = userImage.width / userImage.height;
+                    let renderW, renderH;
+
+                    if (imgRatio > 1) {
+                        renderH = moonDiameter;
+                        renderW = moonDiameter * imgRatio;
+                    } else {
+                        renderW = moonDiameter;
+                        renderH = moonDiameter / imgRatio;
+                    }
+                    // 回転（rotate）を一切行わず、常に正立で描画
+                    ictx.drawImage(userImage, cx - renderW / 2, cy - renderH / 2, renderW, renderH);
+                } else {
+                    ictx.fillStyle = '#1f2833';
+                    ictx.fillRect(0, 0, canvas.width, canvas.height);
+                }
+
+                // 新月（PHASE 0）かつGlowがある場合の特殊処理
+                if (step === 0) {
+                    ctx.save();
+                    const maskCtx = imgBuffer.getContext('2d');
+                    maskCtx.globalCompositeOperation = 'destination-in';
+                    maskCtx.beginPath();
+                    maskCtx.arc(cx, cy, r, 0, Math.PI * 2);
+                    maskCtx.fill();
+
+                    const dynamicBlur1 = (r / 1100) * 80 * glowRatio;
+                    if (dynamicBlur1 > 0) {
+                        ctx.filter = `blur(${dynamicBlur1}px)`; 
+                        ctx.drawImage(imgBuffer, 0, 0); 
+                    }
+                    ctx.restore();
+
+                    ctx.save();
+                    ctx.globalCompositeOperation = 'destination-out';
+                    ctx.beginPath();
+                    ctx.arc(cx, cy, r - ((r / 1100) * 5), 0, Math.PI * 2); 
+                    ctx.fill();
+                    ctx.restore();
+                    return;
+                }
+
+                const shadowBuffer = document.createElement('canvas');
+                shadowBuffer.width = canvas.width;
+                shadowBuffer.height = canvas.height;
+                const sctx = shadowBuffer.getContext('2d');
+                
+                sctx.drawImage(imgBuffer, 0, 0);
+                sctx.globalCompositeOperation = 'destination-in';
+                
+                pathMoonPure(sctx);
+                sctx.fillStyle = '#ffffff';
+                sctx.fill();
+
+                // 光彩（Glow）の反映
+                const dynamicBlur2 = (r / 1100) * 60 * glowRatio;
+                if (dynamicBlur2 > 0) {
+                    ctx.save();
+                    ctx.filter = `blur(${dynamicBlur2}px)`; 
+                    ctx.drawImage(shadowBuffer, 0, 0);
+                    ctx.restore();
+                }
+
+                ctx.drawImage(shadowBuffer, 0, 0);
+            }
+
+            // --- 28段階のZIP生成ループ ---
             for (let i = 0; i <= 27; i++) {
                 progressText.innerText = `Generating Default Moon Phases...\nPhase ${i} / 27`;
                 
-                draw(i);
+                // 回転・カラーなしの純粋な満ち欠けを描画
+                drawPurePhase(i);
                 
                 const dataUrl = canvas.toDataURL('image/png');
                 const base64Data = dataUrl.split(',')[1];
@@ -672,6 +770,7 @@
                 await new Promise(resolve => setTimeout(resolve, 60));
             }
 
+            // ループ終了後、画面上のプレビューを元のシミュレーション状態に戻す
             draw(currentSelectedStep);
 
             progressText.innerText = `Archiving ZIP File...\nPlease wait.`;
@@ -684,7 +783,7 @@
 
             progressOverlay.style.display = 'none';
         });
-
+        
         function draw(step) {
             const cx = canvas.width / 2;
             const cy = canvas.height / 2;
