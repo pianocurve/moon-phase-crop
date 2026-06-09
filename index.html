@@ -466,11 +466,21 @@
             draw(val);
         });
 
+        // 時間スライダーの変更イベント（季節連動表示に対応した数値の書き換え修正）
         timeSlider.addEventListener('input', (e) => {
             const val = parseFloat(e.target.value);
             const hours = Math.floor(val);
             const minutes = Math.floor((val % 1) * 60);
-            timeVal.innerText = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+            const formattedTime = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+            
+            // 画面上の timeVal の要素を確実に取得して書き換える
+            const targetTimeVal = document.getElementById('timeVal');
+            if (targetTimeVal) {
+                targetTimeVal.innerText = formattedTime;
+            }
+            // グローバルに保持している timeVal のテキストも同期（一括ダウンロード等の互換性のため）
+            timeVal.innerText = formattedTime;
+            
             draw(parseFloat(slider.value));
         });
 
