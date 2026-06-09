@@ -538,46 +538,53 @@
             }
         }
 
-
-        // 【完全決着版】地上観測（北緯35度）のリアルな位置角計算
+// 【新暦基準】三日月の立ち具合・寝返り特化型 Posture モデル
         function calculateMoonTilt(phase, timeHourMapped) {
-            // 1. 伸縮させた時間ではなく、スライダーの生の「時計時間」を取得
             const timeHour = parseFloat(timeSlider.value);
 
-            // 2. 南中時刻（Culmination Time）の正確な算出
-            // 新月(Phase 0)は昼の12時、満月(Phase 14)は夜の24時に南中するように12時間をオフセット
+            // 1. 南中時刻の正確な算出（満月＝24時、新月＝12時南中）
             let culminationTime = 12.0 + (phase / 28.0) * 24.0;
 
-            // 3. 時角（Hour Angle: 南中からの経過時間）の算出
+            // 2. 時角の算出と正規化
             let hourAngleHours = timeHour - culminationTime;
-            
-            // -12 〜 +12 時間の範囲に正規化
             while (hourAngleHours <= -12) hourAngleHours += 24;
             while (hourAngleHours > 12) hourAngleHours -= 24;
-
-            // 時角をラジアンに変換 (1時間 = 15度)
             let H = hourAngleHours * 15 * (Math.PI / 180);
             
-            // 4. 季節（月）に応じた月の赤緯（高さ）を計算
+            // 3. 新暦（現代の1月〜12月）ベースの太陽・月の位置計算
             let month = parseInt(monthSlider.value);
-            let lambdaSun = ((month - 3.2) / 12) * 2 * Math.PI; 
-            let decSun = 23.44 * Math.sin(lambdaSun) * (Math.PI / 180);
-            let phaseRad = (phase / 28) * 2 * Math.PI;
-            let decMoon = -decSun * Math.cos(phaseRad); 
+            // 新暦の3月（春分）を幾何学のゼロ点とした黄经
+            let lonSun = ((month - 3.0) / 12.0) * 2 * Math.PI;
+            let lonMoon = lonSun + (phase / 28.0) * 2 * Math.PI;
 
-            let lat = 35 * (Math.PI / 180); // 北緯35度
+            let ecl = 23.44 * (Math.PI / 180); // 地軸の傾き
+            let decMoon = Math.asin(Math.sin(ecl) * Math.sin(lonMoon));
 
-            // 5. 球面三角法による天頂位置角 (Parallactic Angle) の純粋な計算
+            let lat = 35 * (Math.PI / 180); // 北緯35度（観測地基準）
+
+            // 4. 球面三角法による天頂位置角の算出
             let denom = Math.tan(lat) * Math.cos(decMoon) - Math.sin(decMoon) * Math.cos(H);
             let parallacticAngle = 0;
             if (Math.abs(denom) > 0.0001) {
                 parallacticAngle = Math.atan2(Math.sin(H), denom);
             }
 
-            // 余計な補正は一切不要。純粋な位置角をそのまま返すだけで、
-            // 東（耳が上）→ 南中（右にゴロッと寝る）→ 西（さらに右へ倒れる）の
-            // 完璧な時計回り（合計110度前後）が再現されます。
-            return parallacticAngle;
+            let tiltRad = parallacticAngle;
+
+            // 5. 【新暦特化型・立ち具合チューニング】
+            // 月相が満月に向かうにつれて通常の天体運行へ滑らかに収束させ、
+            // 三日月（Phase 2〜5）の夕方の時間帯のみ、新暦の季節に応じた「寝起き」のコントラストを美しく強調する
+            if (phase > 0 && phase < 14) {
+                // 新月に近いほど効果を高くする減衰係数
+                let phaseFactor = (14.0 - phase) / 14.0;
+                
+                // 新暦6月（夏至）に最も「月が立ち（左回転）」、12月（冬至）に最も「月が寝る（右回転）」ようにマッピング
+                let newCalendarExaggeration = Math.sin(((month - 3.0) / 12.0) * 2 * Math.PI) * 0.70 * phaseFactor;
+                
+                tiltRad -= newCalendarExaggeration;
+            }
+
+            return tiltRad;
         }
 
         // 昼夜の長さに同期した環境色調
