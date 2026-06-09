@@ -602,6 +602,8 @@
             return `rgb(${r}, ${g}, ${b})`;
         }
 
+
+        // 季節の日の出・日の入りと完全に一致する全天球シミュレーターの描画
         function drawSimulator(phase, timeHour) {
             const w = simCanvas.width;
             const h = simCanvas.height;
@@ -612,16 +614,31 @@
 
             simCtx.clearRect(0, 0, w, h);
 
+            // 季節に応じた日没・日の出の傾き（境界線）を計算
+            let month = parseInt(monthSlider.value);
+            let seasonOffset = Math.sin(((month - 3.2) / 12) * 2 * Math.PI); 
+            // 18:00(水平)を基準とした、日の入り時刻のズレを角度(rad)に換算
+            let sunsetOffsetRad = (1.1 * seasonOffset) * 15 * (Math.PI / 180);
+
+            // 1. 背景色の塗りつぶし（空の色）
+            simCtx.save();
             simCtx.beginPath();
             simCtx.arc(cx, cy, rSun + 50, 0, Math.PI * 2);
             simCtx.fillStyle = getSkyColor(timeHour);
             simCtx.fill();
+            simCtx.restore();
 
+            // 2. 地下の夜の影エリアを季節の日の出入り角度に合わせて動的に傾ける
+            simCtx.save();
+            simCtx.translate(cx, cy);
+            simCtx.rotate(sunsetOffsetRad); // 季節による日の出入りの傾きを反映
             simCtx.beginPath();
-            simCtx.arc(cx, cy, rSun + 50, 0, Math.PI);
-            simCtx.fillStyle = 'rgba(30, 30, 30, 0.2)';
+            simCtx.arc(0, 0, rSun + 50, 0, Math.PI); // 下半分を影にする
+            simCtx.fillStyle = 'rgba(15, 20, 30, 0.4)'; // 違和感のない暗さの夜影
             simCtx.fill();
+            simCtx.restore();
 
+            // 軌道ガイド線
             simCtx.beginPath();
             simCtx.arc(cx, cy, rSun, 0, Math.PI * 2);
             simCtx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
@@ -631,6 +648,7 @@
             simCtx.strokeStyle = 'rgba(255, 255, 255, 0.05)';
             simCtx.stroke();
 
+            // 太陽と月の座標計算
             const sunAngleRad = (timeHour - 18) * 15 * (Math.PI / 180);
             const sunPos = {
                 x: cx + rSun * Math.cos(sunAngleRad),
@@ -643,6 +661,7 @@
                 y: cy + rMoon * Math.sin(moonAngleRad)
             };
 
+            // 光のベクトル線
             simCtx.beginPath();
             simCtx.moveTo(sunPos.x, sunPos.y);
             simCtx.lineTo(moonPos.x, moonPos.y);
@@ -651,17 +670,21 @@
             simCtx.stroke();
             simCtx.setLineDash([]);
 
+            // 月の描画
             const currentTiltRad = calculateMoonTilt(phase, timeHour);
-
             simCtx.save();
             simCtx.translate(moonPos.x, moonPos.y);
             simCtx.rotate(currentTiltRad);
             
+            // 月が影に入っているかどうかの判定も季節の傾きに同期
+            let checkMoonRad = moonAngleRad - sunsetOffsetRad;
+            let isMoonInShadow = Math.sin(checkMoonRad) > 0;
+
             simCtx.beginPath();
             simCtx.arc(0, 0, 16, 0, Math.PI * 2);
-            simCtx.fillStyle = (moonPos.y > cy) ? '#0b0c10' : '#1f2833';
+            simCtx.fillStyle = isMoonInShadow ? '#0b0c10' : '#1f2833';
             simCtx.fill();
-            simCtx.strokeStyle = (moonPos.y > cy) ? '#444' : '#fff';
+            simCtx.strokeStyle = isMoonInShadow ? '#444' : '#fff';
             simCtx.stroke();
 
             simCtx.beginPath();
@@ -672,11 +695,13 @@
             simCtx.stroke();
             simCtx.restore();
 
+            // 太陽の描画
+            let isSunInShadow = Math.sin(sunAngleRad - sunsetOffsetRad) > 0;
             simCtx.beginPath();
             simCtx.arc(sunPos.x, sunPos.y, 20, 0, Math.PI * 2);
-            simCtx.fillStyle = (sunPos.y > cy) ? '#66532d' : '#f9d71c';
+            simCtx.fillStyle = isSunInShadow ? '#66532d' : '#f9d71c';
             simCtx.fill();
-            if (sunPos.y <= cy) {
+            if (!isSunInShadow) {
                 simCtx.shadowColor = '#f9d71c';
                 simCtx.shadowBlur = 20;
                 simCtx.fill();
