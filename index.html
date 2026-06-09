@@ -333,7 +333,12 @@
             </div>
 
             <div class="control-group">
-                <label>5. Moon Phase Monitor</label>
+                <label>5. Observation Month (<span id="monthVal">6</span>月)</label>
+                <input type="range" id="monthSlider" min="1" max="12" step="1" value="6">
+            </div>
+
+            <div class="control-group">
+                <label>6. Moon Phase Monitor</label>
                 <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 10px;">
                     <div class="step-display" style="margin-bottom: 0;">PHASE <span id="stepVal">14.0</span> / 28</div>
                     <label class="lock-container" style="padding-bottom: 4px;">
@@ -347,7 +352,7 @@
             </div>
 
             <div class="control-group" style="margin-top: 30px;">
-                <label>6. Export Matrix</label>
+                <label>7. Export Matrix</label>
                 <button class="btn" id="downloadBtn">Save Current Phase</button>
                 <button class="btn btn-bulk" id="bulkDownloadBtn">Save All 28 Default Phases (.zip)</button>
             </div>
@@ -378,6 +383,8 @@
         const glowVal = document.getElementById('glowVal');
         const timeSlider = document.getElementById('timeSlider');
         const timeVal = document.getElementById('timeVal');
+        const monthSlider = document.getElementById('monthSlider');
+        const monthVal = document.getElementById('monthVal');
         const fileInput = document.getElementById('fileInput');
         const fileLabel = document.getElementById('fileLabel');
         const downloadBtn = document.getElementById('downloadBtn');
@@ -398,20 +405,6 @@
 
         inputWidth.addEventListener('change', updateCanvasSize);
         inputHeight.addEventListener('change', updateCanvasSize);
-
-        function updateCanvasSize() {
-            let w = parseInt(inputWidth.value) || 2520;
-            let h = parseInt(inputHeight.value) || 2992;
-            
-            if (w < 100) w = 100;
-            if (h < 100) h = 100;
-
-            canvas.width = w;
-            canvas.height = h;
-            container.style.aspectRatio = `${w} / ${h}`;
-
-            draw(parseFloat(slider.value));
-        }
 
         fileInput.addEventListener('change', (e) => {
             const file = e.target.files[0];
@@ -465,6 +458,11 @@
             draw(parseFloat(slider.value));
         });
 
+        monthSlider.addEventListener('input', (e) => {
+            monthVal.innerText = e.target.value;
+            draw(parseFloat(slider.value));
+        });
+
         function updateAgeDisplay(phase) {
             const maxCycle = 29.53;
             const centerAge = (phase / 28) * maxCycle;
@@ -489,46 +487,59 @@
             }
         }
 
-        // NASA正立基準の幾何学的な位置角計算（過剰回転の抑制と回転方向の反転を修正）
+        // 季節（月）と月齢を考慮した、天文学的に正しい位置角（傾き）計算
         function calculateMoonTilt(phase, timeHour) {
-            // 月の時角（南中時を0とする角度モデル）の算出
+            let month = parseInt(monthSlider.value);
+
+            // 1. 太陽の赤緯を概算 (6月夏至に+23.4度、12月冬至に-23.4度)
+            let lambdaSun = ((month - 3.2) / 12) * 2 * Math.PI; 
+            let decSun = 23.44 * Math.sin(lambdaSun) * (Math.PI / 180);
+
+            // 2. 月の赤緯を算出 (黄道に沿った逆相関モデル：満月時は太陽の真反対に位置する)
+            let phaseRad = (phase / 28) * 2 * Math.PI;
+            let decMoon = -decSun * Math.cos(phaseRad); 
+
+            // 3. 月の時角（南中時を0とする)
             let moonHourPosition = timeHour - (phase / 28) * 24;
             while (moonHourPosition < -12) moonHourPosition += 24;
             while (moonHourPosition > 12) moonHourPosition -= 24;
 
-            // 時角をラジアンに変換 (1時間 = 15度)
             let H = moonHourPosition * 15 * (Math.PI / 180);
             let lat = 35 * (Math.PI / 180); // 北緯35度
-            let dec = 0 * (Math.PI / 180);  // 赤緯0度
 
-            // 地平天球座標系における天頂位置角 (Parallactic Angle) の算出
-            let denom = Math.tan(lat) * Math.cos(dec) - Math.sin(dec) * Math.cos(H);
+            // 4. 地平座標系における天頂位置角 (Parallactic Angle) の計算
+            let denom = Math.tan(lat) * Math.cos(decMoon) - Math.sin(decMoon) * Math.cos(H);
             let parallacticAngle = 0;
             if (Math.abs(denom) > 0.0001) {
                 parallacticAngle = Math.atan2(Math.sin(H), denom);
             }
 
-            // 【修正怪所】符号と基準軸の整合性を修正
-            // 南中（H=0）の瞬間に完全な 0（正立・ティコが真下）となり、
-            // 時間が進む（Hがプラスに増える）につれて、画像が時計回り（右）に倒れるように調整
-            let tiltRad = -parallacticAngle;
-
+            // 南中(H=0)で完全正立(0rad)。時間経過(+H)に伴い時計回りに倒れるよう調整
+            let tiltRad = parallacticAngle - H;
             return tiltRad;
         }
 
+        // 季節（月）に応じた「日の出・日の入り」の変化を取り入れた空の色計算
         function getSkyColor(hour) {
+            let month = parseInt(monthSlider.value);
+            
+            // 6月に最大(約14.5時間)、12月に最小(約9.5時間)となる昼の長さの係数
+            let seasonOffset = Math.sin(((month - 3.2) / 12) * 2 * Math.PI); 
+            let sunrise = 5.61 - (1.1 * seasonOffset); // 夏は4:30頃、冬は6:45頃
+            let sunset = 18.39 + (1.1 * seasonOffset); // 夏は19:30頃、冬は16:30頃
+
             const stops = [
-                { h: 0,   r: 50,  g: 60,  b: 90 },
-                { h: 4.5, r: 50,  g: 70,  b: 100 },
-                { h: 6.0, r: 50,  g: 70,  b: 120 },
-                { h: 6.5, r: 60,  g: 70,  b: 150 },
-                { h: 8.0, r: 100, g: 150, b: 210 },
-                { h: 12.0, r: 160, g: 215, b: 255 },
-                { h: 16.0, r: 100, g: 150, b: 210 },
-                { h: 17.5, r: 60,  g: 70,  b: 150 },
-                { h: 18.0, r: 50,  g: 70,  b: 120 },
-                { h: 19.5, r: 50,  g: 70,  b: 100 },
-                { h: 24,   r: 50,  g: 60,  b: 90 }
+                { h: 0,           r: 50,  g: 60,  b: 90 },
+                { h: sunrise - 1.5, r: 50,  g: 70,  b: 100 },
+                { h: sunrise,     r: 50,  g: 70,  b: 120 },
+                { h: sunrise + 0.5, r: 60,  g: 70,  b: 150 },
+                { h: sunrise + 2.0, r: 100, g: 150, b: 210 },
+                { h: 12.0,        r: 160, g: 215, b: 255 }, // 南中
+                { h: sunset - 2.0,  r: 100, g: 150, b: 210 },
+                { h: sunset - 0.5,  r: 60,  g: 70,  b: 150 },
+                { h: sunset,      r: 50,  g: 70,  b: 120 },
+                { h: sunset + 1.5,  r: 50,  g: 70,  b: 100 },
+                { h: 24,          r: 50,  g: 60,  b: 90 }
             ];
 
             let start = stops[0], end = stops[stops.length - 1];
@@ -655,12 +666,11 @@
             triggerDownload(dataUrl, `moon_phase_${fileSuffix}_t${timeSuffix}.png`);
         });
 
-bulkDownloadBtn.addEventListener('click', async () => {
+        bulkDownloadBtn.addEventListener('click', async () => {
             progressOverlay.style.display = 'flex';
             const zip = new JSZip();
             const currentSelectedStep = parseFloat(slider.value);
 
-            // --- 一括エクスポート専用のクリーンな描画関数 ---
             function drawPurePhase(step) {
                 const cx = canvas.width / 2;
                 const cy = canvas.height / 2;
@@ -671,7 +681,6 @@ bulkDownloadBtn.addEventListener('click', async () => {
 
                 if (glowRatio === 0 && step === 0) return;
 
-                // 右から左へ素直に満ち欠けするマスクパス (回転なし)
                 function pathMoonPure(context) {
                     const radians = step * (Math.PI / 14);
                     const phase = -Math.cos(radians);
@@ -700,14 +709,12 @@ bulkDownloadBtn.addEventListener('click', async () => {
                         renderW = moonDiameter;
                         renderH = moonDiameter / imgRatio;
                     }
-                    // 回転（rotate）を一切行わず、常に正立で描画
                     ictx.drawImage(userImage, cx - renderW / 2, cy - renderH / 2, renderW, renderH);
                 } else {
                     ictx.fillStyle = '#1f2833';
                     ictx.fillRect(0, 0, canvas.width, canvas.height);
                 }
 
-                // 新月（PHASE 0）かつGlowがある場合の特殊処理
                 if (step === 0) {
                     ctx.save();
                     const maskCtx = imgBuffer.getContext('2d');
@@ -744,7 +751,6 @@ bulkDownloadBtn.addEventListener('click', async () => {
                 sctx.fillStyle = '#ffffff';
                 sctx.fill();
 
-                // 光彩（Glow）の反映
                 const dynamicBlur2 = (r / 1100) * 60 * glowRatio;
                 if (dynamicBlur2 > 0) {
                     ctx.save();
@@ -756,11 +762,8 @@ bulkDownloadBtn.addEventListener('click', async () => {
                 ctx.drawImage(shadowBuffer, 0, 0);
             }
 
-            // --- 28段階のZIP生成ループ ---
             for (let i = 0; i <= 27; i++) {
                 progressText.innerText = `Generating Default Moon Phases...\nPhase ${i} / 27`;
-                
-                // 回転・カラーなしの純粋な満ち欠けを描画
                 drawPurePhase(i);
                 
                 const dataUrl = canvas.toDataURL('image/png');
@@ -770,7 +773,6 @@ bulkDownloadBtn.addEventListener('click', async () => {
                 await new Promise(resolve => setTimeout(resolve, 60));
             }
 
-            // ループ終了後、画面上のプレビューを元のシミュレーション状態に戻す
             draw(currentSelectedStep);
 
             progressText.innerText = `Archiving ZIP File...\nPlease wait.`;
@@ -780,10 +782,9 @@ bulkDownloadBtn.addEventListener('click', async () => {
             triggerDownload(blobUrl, `moon_phase_28_matrix.zip`);
             
             setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
-
             progressOverlay.style.display = 'none';
         });
-        
+
         function draw(step) {
             const cx = canvas.width / 2;
             const cy = canvas.height / 2;
