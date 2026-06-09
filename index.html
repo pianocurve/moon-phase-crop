@@ -342,7 +342,7 @@
                     </label>
                 </div>
                 <input type="range" id="stepSlider" min="0" max="27.9" step="1" value="14">
-                <div class="age-display">およその月齢: <strong><span id="ageRangeVal">14.3 〜 15.3</span></strong> 頃</div>
+                <div class="age-display">およそ月齢: <strong><span id="ageRangeVal">14.3 〜 15.3</span></strong> 頃</div>
                 <div class="age-display" style="margin-top: 2px;">シミュレーション傾斜角: <strong><span id="tiltAngleVal">0.0</span>°</strong></div>
             </div>
 
@@ -489,32 +489,24 @@
             }
         }
 
-        // NASA正立満月画像を基準とし、地上観測（北緯35度）のリアルな見かけの回転角を計算
+        // NASA正立基準の幾何学的な位置角計算（南中時を完全な0基準に固定化）
         function calculateMoonTilt(phase, timeHour) {
-            // 月の時角（南中時を0とする角度モデル）の算出
             let moonHourPosition = timeHour - (phase / 28) * 24;
             while (moonHourPosition < -12) moonHourPosition += 24;
             while (moonHourPosition > 12) moonHourPosition -= 24;
 
-            // 時角をラジアンに変換 (1時間 = 15度)
             let H = moonHourPosition * 15 * (Math.PI / 180);
-            
-            // 観測地の緯度 (北緯35度)
             let lat = 35 * (Math.PI / 180);
-            
-            // 赤緯 (0ラジアンとしてモデル化)
             let dec = 0 * (Math.PI / 180);
 
-            // 地平天球座標系における天頂位置角 (Parallactic Angle) の算出
             let denom = Math.tan(lat) * Math.cos(dec) - Math.sin(dec) * Math.cos(H);
             let parallacticAngle = 0;
             if (Math.abs(denom) > 0.0001) {
                 parallacticAngle = Math.atan2(Math.sin(H), denom);
             }
 
-            // NASAの宇宙正立画像をベースに、黒板のリアルな運行
-            // （東[18時頃]＝直立0度、南中[24時頃]＝右に最大傾斜）を完全に再現するための位相幾何学的な調整係数
-            let tiltRad = -parallacticAngle - H;
+            // 南中（H=0）において tiltRad が完全に 0（正立）になるよう位相変換を修正
+            let tiltRad = parallacticAngle - H;
 
             return tiltRad;
         }
@@ -615,7 +607,6 @@
             simCtx.strokeStyle = (moonPos.y > cy) ? '#444' : '#fff';
             simCtx.stroke();
 
-            // 月の基準頂点（ウサギの頭の向き）を示すゴールドのインジケータライン
             simCtx.beginPath();
             simCtx.moveTo(0, 0);
             simCtx.lineTo(0, -16);
