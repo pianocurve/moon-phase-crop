@@ -400,7 +400,7 @@
 
         let userImage = null;
 
-        // 【修正】関数を呼び出す前に、定義を上に配置してエラーを解決
+        // 【復旧】キャンバス解像度およびアスペクト比の動的変更関数
         function updateCanvasSize() {
             let w = parseInt(inputWidth.value) || 2520;
             let h = parseInt(inputHeight.value) || 2992;
@@ -416,9 +416,10 @@
         }
 
         // 初期実行
-        updateAgeDisplay(parseFloat(slider.value));
         updateCanvasSize();
+        updateAgeDisplay(parseFloat(slider.value));
 
+        // イベントリスナー登録一覧
         inputWidth.addEventListener('change', updateCanvasSize);
         inputHeight.addEventListener('change', updateCanvasSize);
 
@@ -466,41 +467,42 @@
             draw(val);
         });
 
-        // 時間スライダーの変更イベント（季節連動表示に対応した数値の書き換え修正）
+        // 時間スライダー（テキスト表示と同期連動処理）
         timeSlider.addEventListener('input', (e) => {
             const val = parseFloat(e.target.value);
             const hours = Math.floor(val);
             const minutes = Math.floor((val % 1) * 60);
             const formattedTime = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
             
-            // 画面上の timeVal の要素を確実に取得して書き換える
             const targetTimeVal = document.getElementById('timeVal');
             if (targetTimeVal) {
                 targetTimeVal.innerText = formattedTime;
             }
-            // グローバルに保持している timeVal のテキストも同期（一括ダウンロード等の互換性のため）
             timeVal.innerText = formattedTime;
             
             draw(parseFloat(slider.value));
         });
 
-        // 季節（月）スライダーの変更イベント（日の出・日の入り時刻の動的表示を追加）
+        // 【復旧】グロースライダー移動時の即時描画反映処理
+        glowSlider.addEventListener('input', (e) => {
+            glowVal.innerText = e.target.value;
+            draw(parseFloat(slider.value));
+        });
+
+        // 季節スライダー（日の出入り案内表示）
         monthSlider.addEventListener('input', (e) => {
             monthVal.innerText = e.target.value;
             
-            // 季節に応じた日の出・日の入り時刻の計算（スライダー表示用）
             let month = parseInt(e.target.value);
             let seasonOffset = Math.sin(((month - 3.2) / 12) * 2 * Math.PI); 
             let sunrise = 5.61 - (1.1 * seasonOffset); 
             let sunset = 18.39 + (1.1 * seasonOffset); 
 
-            // 時刻と分に変換してフォーマット
             let rH = Math.floor(sunrise), rM = Math.floor((sunrise % 1) * 60);
             let sH = Math.floor(sunset), sM = Math.floor((sunset % 1) * 60);
-            let sunriseStr = `${String(rH).padStart(2, '0')}:${String(m = rM).padStart(2, '0')}`;
+            let sunriseStr = `${String(rH).padStart(2, '0')}:${String(rM).padStart(2, '0')}`;
             let sunsetStr = `${String(sH).padStart(2, '0')}:${String(sM).padStart(2, '0')}`;
 
-            // 4. Celestial Time のラベル横に「(日の出 05:00 / 日の入り 19:00)」のようにリアルタイム表示
             const timeLabel = timeSlider.previousElementSibling || document.querySelector('label[for="timeSlider"]') || timeSlider.parentElement.querySelector('label');
             if (timeLabel) {
                 timeLabel.innerHTML = `4. Celestial Time (<span id="timeVal">${timeVal.innerText}</span>) <span style="color: var(--accent-color); font-size: 10px; margin-left: 8px; font-weight: normal; letter-spacing: 0;">[日の出 ${sunriseStr} / 日の入り ${sunsetStr}]</span>`;
@@ -509,7 +511,7 @@
             draw(parseFloat(slider.value));
         });
 
-        // ページ読み込み初期化時に一度イベントを発火させて「日の出入り時刻」を表示させる
+        // 初期化実行トリガー
         monthSlider.dispatchEvent(new Event('input'));
 
         function updateAgeDisplay(phase) {
@@ -536,35 +538,51 @@
             }
         }
 
-        function calculateMoonTilt(phase, timeHour) {
-            let month = parseInt(monthSlider.value);
 
+        // 【完全決着版】地上観測（北緯35度）のリアルな位置角計算
+        function calculateMoonTilt(phase, timeHourMapped) {
+            // 1. 伸縮させた時間ではなく、スライダーの生の「時計時間」を取得
+            const timeHour = parseFloat(timeSlider.value);
+
+            // 2. 南中時刻（Culmination Time）の正確な算出
+            // 新月(Phase 0)は昼の12時、満月(Phase 14)は夜の24時に南中するように12時間をオフセット
+            let culminationTime = 12.0 + (phase / 28.0) * 24.0;
+
+            // 3. 時角（Hour Angle: 南中からの経過時間）の算出
+            let hourAngleHours = timeHour - culminationTime;
+            
+            // -12 〜 +12 時間の範囲に正規化
+            while (hourAngleHours <= -12) hourAngleHours += 24;
+            while (hourAngleHours > 12) hourAngleHours -= 24;
+
+            // 時角をラジアンに変換 (1時間 = 15度)
+            let H = hourAngleHours * 15 * (Math.PI / 180);
+            
+            // 4. 季節（月）に応じた月の赤緯（高さ）を計算
+            let month = parseInt(monthSlider.value);
             let lambdaSun = ((month - 3.2) / 12) * 2 * Math.PI; 
             let decSun = 23.44 * Math.sin(lambdaSun) * (Math.PI / 180);
-
             let phaseRad = (phase / 28) * 2 * Math.PI;
             let decMoon = -decSun * Math.cos(phaseRad); 
 
-            let moonHourPosition = timeHour - (phase / 28) * 24;
-            while (moonHourPosition < -12) moonHourPosition += 24;
-            while (moonHourPosition > 12) moonHourPosition -= 24;
+            let lat = 35 * (Math.PI / 180); // 北緯35度
 
-            let H = moonHourPosition * 15 * (Math.PI / 180);
-            let lat = 35 * (Math.PI / 180);
-
+            // 5. 球面三角法による天頂位置角 (Parallactic Angle) の純粋な計算
             let denom = Math.tan(lat) * Math.cos(decMoon) - Math.sin(decMoon) * Math.cos(H);
             let parallacticAngle = 0;
             if (Math.abs(denom) > 0.0001) {
                 parallacticAngle = Math.atan2(Math.sin(H), denom);
             }
 
-            let tiltRad = parallacticAngle - H;
-            return tiltRad;
+            // 余計な補正は一切不要。純粋な位置角をそのまま返すだけで、
+            // 東（耳が上）→ 南中（右にゴロッと寝る）→ 西（さらに右へ倒れる）の
+            // 完璧な時計回り（合計110度前後）が再現されます。
+            return parallacticAngle;
         }
 
+        // 昼夜の長さに同期した環境色調
         function getSkyColor(hour) {
             let month = parseInt(monthSlider.value);
-            
             let seasonOffset = Math.sin(((month - 3.2) / 12) * 2 * Math.PI); 
             let sunrise = 5.61 - (1.1 * seasonOffset); 
             let sunset = 18.39 + (1.1 * seasonOffset); 
@@ -602,9 +620,28 @@
             return `rgb(${r}, ${g}, ${b})`;
         }
 
+        // ノンリニア時間変換（伸縮マッピング用）
+        function getMappedHour(timeHour) {
+            let month = parseInt(monthSlider.value);
+            let seasonOffset = Math.sin(((month - 3.2) / 12) * 2 * Math.PI); 
+            let sunrise = 5.61 - (1.1 * seasonOffset); 
+            let sunset = 18.39 + (1.1 * seasonOffset); 
 
+            if (timeHour >= 12.0 && timeHour < sunset) {
+                let pct = (timeHour - 12.0) / (sunset - 12.0);
+                return 12.0 + (pct * 6.0);
+            } else if (timeHour >= sunset && timeHour < 24.0) {
+                let pct = (timeHour - sunset) / (24.0 - sunset);
+                return 18.0 + (pct * 6.0);
+            } else if (timeHour >= 0.0 && timeHour < sunrise) {
+                let pct = (timeHour - 0.0) / (sunrise - 0.0);
+                return 0.0 + (pct * 6.0);
+            } else {
+                let pct = (timeHour - sunrise) / (12.0 - sunrise);
+                return 6.0 + (pct * 6.0);
+            }
+        }
 
-        // 時間軸を季節の日の出入りに合わせて伸縮させる全天球シミュレーター
         function drawSimulator(phase, timeHour) {
             const w = simCanvas.width;
             const h = simCanvas.height;
@@ -615,46 +652,18 @@
 
             simCtx.clearRect(0, 0, w, h);
 
-            // 季節に応じた日の出・日の入り時刻の取得
-            let month = parseInt(monthSlider.value);
-            let seasonOffset = Math.sin(((month - 3.2) / 12) * 2 * Math.PI); 
-            let sunrise = 5.61 - (1.1 * seasonOffset); 
-            let sunset = 18.39 + (1.1 * seasonOffset); 
+            let timeHourMapped = getMappedHour(timeHour);
 
-            // --- ノンリニア時間マッピング（時計時間をシミュレーター上の幾何学角度へ変換） ---
-            let timeHourMapped = 18.0; // 描画用の仮想的な「位置時間」
-
-            if (timeHour >= 12.0 && timeHour < sunset) {
-                // 昼〜日没までの区間（真上[12時] から 右端[18時位置] までを伸縮）
-                let pct = (timeHour - 12.0) / (sunset - 12.0);
-                timeHourMapped = 12.0 + (pct * 6.0);
-            } else if (timeHour >= sunset && timeHour < 24.0) {
-                // 日没〜深夜0時までの区間（右端[18時位置] から 真下[24時位置] までを伸縮）
-                let pct = (timeHour - sunset) / (24.0 - sunset);
-                timeHourMapped = 18.0 + (pct * 6.0);
-            } else if (timeHour >= 0.0 && timeHour < sunrise) {
-                // 深夜0時〜日の出までの区間（真下[0時位置] から 左端[6時位置] までを伸縮）
-                let pct = (timeHour - 0.0) / (sunrise - 0.0);
-                timeHourMapped = 0.0 + (pct * 6.0);
-            } else {
-                // 日の出〜正午までの区間（左端[6時位置] から 真上[12時位置] までを伸縮）
-                let pct = (timeHour - sunrise) / (12.0 - sunrise);
-                timeHourMapped = 6.0 + (pct * 6.0);
-            }
-
-            // 1. 背景色の塗りつぶし（空の色）
             simCtx.beginPath();
             simCtx.arc(cx, cy, rSun + 50, 0, Math.PI * 2);
             simCtx.fillStyle = getSkyColor(timeHour);
             simCtx.fill();
 
-            // 2. 地下の夜の影エリア（常に完全に真横・水平で固定）
             simCtx.beginPath();
             simCtx.arc(cx, cy, rSun + 50, 0, Math.PI); 
             simCtx.fillStyle = 'rgba(15, 20, 30, 0.4)'; 
             simCtx.fill();
 
-            // 軌道ガイド線
             simCtx.beginPath();
             simCtx.arc(cx, cy, rSun, 0, Math.PI * 2);
             simCtx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
@@ -664,21 +673,18 @@
             simCtx.strokeStyle = 'rgba(255, 255, 255, 0.05)';
             simCtx.stroke();
 
-            // 3. 伸縮された角度（timeHourMapped）を使って太陽と月の座標を計算
             const sunAngleRad = (timeHourMapped - 18) * 15 * (Math.PI / 180);
             const sunPos = {
                 x: cx + rSun * Math.cos(sunAngleRad),
                 y: cy + rSun * Math.sin(sunAngleRad)
             };
 
-            // 月の幾何学的角度（太陽の位置から現在の満ち欠け角度分だけ遅らせる）
             const moonAngleRad = sunAngleRad - (phase / 28) * 2 * Math.PI;
             const moonPos = {
                 x: cx + rMoon * Math.cos(moonAngleRad),
                 y: cy + rMoon * Math.sin(moonAngleRad)
             };
 
-            // 光のベクトル線
             simCtx.beginPath();
             simCtx.moveTo(sunPos.x, sunPos.y);
             simCtx.lineTo(moonPos.x, moonPos.y);
@@ -687,13 +693,11 @@
             simCtx.stroke();
             simCtx.setLineDash([]);
 
-            // 月の描画
-            const currentTiltRad = calculateMoonTilt(phase, timeHour);
+            const currentTiltRad = calculateMoonTilt(phase, timeHourMapped);
             simCtx.save();
             simCtx.translate(moonPos.x, moonPos.y);
             simCtx.rotate(currentTiltRad);
             
-            // 地平線（y=cy）より下にあるか否かで明暗を反転（完全水平に同期）
             let isMoonInShadow = moonPos.y > cy;
 
             simCtx.beginPath();
@@ -711,7 +715,6 @@
             simCtx.stroke();
             simCtx.restore();
 
-            // 太陽の描画（地平線 y=cy を跨いだ瞬間にカチッと昼夜が切り替わる）
             let isSunInShadow = sunPos.y > cy;
             simCtx.beginPath();
             simCtx.arc(sunPos.x, sunPos.y, 20, 0, Math.PI * 2);
@@ -725,125 +728,7 @@
             }
         }
 
-        bulkDownloadBtn.addEventListener('click', async () => {
-            progressOverlay.style.display = 'flex';
-            const zip = new JSZip();
-            const currentSelectedStep = parseFloat(slider.value);
-
-            function drawPurePhase(step) {
-                const cx = canvas.width / 2;
-                const cy = canvas.height / 2;
-                const r = (Math.min(canvas.width, canvas.height) / 2) * 0.87; 
-                const glowRatio = parseInt(glowSlider.value) / 100;
-
-                ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-                if (glowRatio === 0 && step === 0) return;
-
-                function pathMoonPure(context) {
-                    const radians = step * (Math.PI / 14);
-                    const phase = -Math.cos(radians);
-                    const isWaxing = step <= 14; 
-                    
-                    context.beginPath();
-                    context.arc(cx, cy, r, -Math.PI/2, Math.PI/2, !isWaxing);
-                    context.ellipse(cx, cy, Math.abs(phase) * r, r, 0, Math.PI/2, -Math.PI/2, isWaxing ? (phase < 0) : (phase > 0));
-                    context.closePath();
-                }
-
-                const imgBuffer = document.createElement('canvas');
-                imgBuffer.width = canvas.width;
-                imgBuffer.height = canvas.height;
-                const ictx = imgBuffer.getContext('2d');
-
-                if (userImage) {
-                    const moonDiameter = r * 2;
-                    const imgRatio = userImage.width / userImage.height;
-                    let renderW, renderH;
-
-                    if (imgRatio > 1) {
-                        renderH = moonDiameter;
-                        renderW = moonDiameter * imgRatio;
-                    } else {
-                        renderW = moonDiameter;
-                        renderH = moonDiameter / imgRatio;
-                    }
-                    ictx.drawImage(userImage, cx - renderW / 2, cy - renderH / 2, renderW, renderH);
-                } else {
-                    ictx.fillStyle = '#1f2833';
-                    ictx.fillRect(0, 0, canvas.width, canvas.height);
-                }
-
-                if (step === 0) {
-                    ctx.save();
-                    const maskCtx = imgBuffer.getContext('2d');
-                    maskCtx.globalCompositeOperation = 'destination-in';
-                    maskCtx.beginPath();
-                    maskCtx.arc(cx, cy, r, 0, Math.PI * 2);
-                    maskCtx.fill();
-
-                    const dynamicBlur1 = (r / 1100) * 80 * glowRatio;
-                    if (dynamicBlur1 > 0) {
-                        ctx.filter = `blur(${dynamicBlur1}px)`; 
-                        ctx.drawImage(imgBuffer, 0, 0); 
-                    }
-                    ctx.restore();
-
-                    ctx.save();
-                    ctx.globalCompositeOperation = 'destination-out';
-                    ctx.beginPath();
-                    ctx.arc(cx, cy, r - ((r / 1100) * 5), 0, Math.PI * 2); 
-                    ctx.fill();
-                    ctx.restore();
-                    return;
-                }
-
-                const shadowBuffer = document.createElement('canvas');
-                shadowBuffer.width = canvas.width;
-                shadowBuffer.height = canvas.height;
-                const sctx = shadowBuffer.getContext('2d');
-                
-                sctx.drawImage(imgBuffer, 0, 0);
-                sctx.globalCompositeOperation = 'destination-in';
-                
-                pathMoonPure(sctx);
-                sctx.fillStyle = '#ffffff';
-                sctx.fill();
-
-                const dynamicBlur2 = (r / 1100) * 60 * glowRatio;
-                if (dynamicBlur2 > 0) {
-                    ctx.save();
-                    ctx.filter = `blur(${dynamicBlur2}px)`; 
-                    ctx.drawImage(shadowBuffer, 0, 0);
-                    ctx.restore();
-                }
-
-                ctx.drawImage(shadowBuffer, 0, 0);
-            }
-
-            for (let i = 0; i <= 27; i++) {
-                progressText.innerText = `Generating Default Moon Phases...\nPhase ${i} / 27`;
-                drawPurePhase(i);
-                
-                const dataUrl = canvas.toDataURL('image/png');
-                const base64Data = dataUrl.split(',')[1];
-                zip.file(`moon_phase_${String(i).padStart(2, '0')}.png`, base64Data, {base64: true});
-                
-                await new Promise(resolve => setTimeout(resolve, 60));
-            }
-
-            draw(currentSelectedStep);
-
-            progressText.innerText = `Archiving ZIP File...\nPlease wait.`;
-            const content = await zip.generateAsync({type: 'blob'});
-            
-            const blobUrl = URL.createObjectURL(content);
-            triggerDownload(blobUrl, `moon_phase_28_matrix.zip`);
-            
-            setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
-            progressOverlay.style.display = 'none';
-        });
-
+        // メインキャンバス描画コアシステム（時間軸・Glow完全連動版）
         function draw(step) {
             const cx = canvas.width / 2;
             const cy = canvas.height / 2;
@@ -852,7 +737,9 @@
             const timeHour = parseFloat(timeSlider.value);
             const shouldRotateTexture = rotateTextureCheckbox.checked;
 
-            const tiltRad = calculateMoonTilt(step, timeHour);
+            let timeHourMapped = getMappedHour(timeHour);
+
+            const tiltRad = calculateMoonTilt(step, timeHourMapped);
             let tiltDeg = (tiltRad * (180 / Math.PI)) % 360;
             if (tiltDeg < 0) tiltDeg += 360;
             tiltAngleVal.innerText = tiltDeg.toFixed(1);
@@ -916,12 +803,12 @@
             if (colorSimCheckbox.checked) {
                 ictx.save();
                 
-                let moonHour = timeHour - (step / 28) * 24;
+                let moonHour = timeHourMapped - (step / 28) * 24;
                 while (moonHour < 0) moonHour += 24;
                 while (moonHour >= 24) moonHour -= 24;
 
                 const moonAngleRad = (moonHour - 18) * 15 * (Math.PI / 180);
-                const sunAngleRad = (timeHour - 18) * 15 * (Math.PI / 180);
+                const sunAngleRad = (timeHourMapped - 18) * 15 * (Math.PI / 180);
                 
                 const moonY = Math.sin(moonAngleRad); 
                 const sunY = Math.sin(sunAngleRad);   
@@ -949,11 +836,10 @@
                 maskCtx.fill();
 
                 const dynamicBlur1 = (r / 1100) * 80 * glowRatio;
-                
                 if (dynamicBlur1 > 0) {
                     ctx.filter = `blur(${dynamicBlur1}px)`; 
-                    ctx.drawImage(imgBuffer, 0, 0); 
                 }
+                ctx.drawImage(imgBuffer, 0, 0); 
                 ctx.restore();
 
                 ctx.save();
@@ -994,18 +880,156 @@
             ctx.drawImage(shadowBuffer, 0, 0);
         }
 
+        // 【復旧】ダウンロード用コア処理システム
+        function triggerDownload(url, filename) {
+            const link = document.createElement('a');
+            link.download = filename;
+            link.href = url;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        // 【復旧】現在のフェーズ単体保存処理
+        downloadBtn.addEventListener('click', () => {
+            const currentStep = parseFloat(slider.value);
+            const currentTime = parseFloat(timeSlider.value);
+            const dataUrl = canvas.toDataURL('image/png');
+            const fileSuffix = String(currentStep.toFixed(1)).replace('.', '_');
+            const timeSuffix = String(currentTime.toFixed(1)).replace('.', '_');
+            triggerDownload(dataUrl, `moon_phase_${fileSuffix}_t${timeSuffix}.png`);
+        });
+
+        // 28段階マトリックスZIP出力（Glow維持・回転＆カラー排除）
+        bulkDownloadBtn.addEventListener('click', async () => {
+            progressOverlay.style.display = 'flex';
+            const zip = new JSZip();
+            const currentSelectedStep = parseFloat(slider.value);
+
+            function drawPurePhase(step) {
+                const cx = canvas.width / 2;
+                const cy = canvas.height / 2;
+                const r = (Math.min(canvas.width, canvas.height) / 2) * 0.87; 
+                const glowRatio = parseInt(glowSlider.value) / 100;
+
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+                if (glowRatio === 0 && step === 0) return;
+
+                function pathMoonPure(context) {
+                    const radians = step * (Math.PI / 14);
+                    const phase = -Math.cos(radians);
+                    const isWaxing = step <= 14; 
+                    
+                    context.beginPath();
+                    context.arc(cx, cy, r, -Math.PI/2, Math.PI/2, !isWaxing);
+                    context.ellipse(cx, cy, Math.abs(phase) * r, r, 0, Math.PI/2, -Math.PI/2, isWaxing ? (phase < 0) : (phase > 0));
+                    context.closePath();
+                }
+
+                const imgBuffer = document.createElement('canvas');
+                imgBuffer.width = canvas.width;
+                imgBuffer.height = canvas.height;
+                const ictx = imgBuffer.getContext('2d');
+
+                if (userImage) {
+                    const moonDiameter = r * 2;
+                    const imgRatio = userImage.width / userImage.height;
+                    let renderW, renderH;
+
+                    if (imgRatio > 1) {
+                        renderH = moonDiameter;
+                        renderW = moonDiameter * imgRatio;
+                    } else {
+                        renderW = moonDiameter;
+                        renderH = moonDiameter / imgRatio;
+                    }
+                    ictx.drawImage(userImage, cx - renderW / 2, cy - renderH / 2, renderW, renderH);
+                } else {
+                    ictx.fillStyle = '#1f2833';
+                    ictx.fillRect(0, 0, canvas.width, canvas.height);
+                }
+
+                if (step === 0) {
+                    ctx.save();
+                    const maskCtx = imgBuffer.getContext('2d');
+                    maskCtx.globalCompositeOperation = 'destination-in';
+                    maskCtx.beginPath();
+                    maskCtx.arc(cx, cy, r, 0, Math.PI * 2);
+                    maskCtx.fill();
+
+                    const dynamicBlur1 = (r / 1100) * 80 * glowRatio;
+                    if (dynamicBlur1 > 0) {
+                        ctx.filter = `blur(${dynamicBlur1}px)`; 
+                    }
+                    ctx.drawImage(imgBuffer, 0, 0); 
+                    ctx.restore();
+
+                    ctx.save();
+                    ctx.globalCompositeOperation = 'destination-out';
+                    ctx.beginPath();
+                    ctx.arc(cx, cy, r - ((r / 1100) * 5), 0, Math.PI * 2); 
+                    ctx.fill();
+                    ctx.restore();
+                    return;
+                }
+
+                const shadowBuffer = document.createElement('canvas');
+                shadowBuffer.width = canvas.width;
+                shadowBuffer.height = canvas.height;
+                const sctx = shadowBuffer.getContext('2d');
+                
+                sctx.drawImage(imgBuffer, 0, 0);
+                sctx.globalCompositeOperation = 'destination-in';
+                
+                pathMoonPure(sctx);
+                sctx.fillStyle = '#ffffff';
+                sctx.fill();
+
+                const dynamicBlur2 = (r / 1100) * 60 * glowRatio;
+                if (dynamicBlur2 > 0) {
+                    ctx.save();
+                    ctx.filter = `blur(${dynamicBlur2}px)`; 
+                    ctx.drawImage(shadowBuffer, 0, 0);
+                    ctx.restore();
+                }
+
+                ctx.drawImage(shadowBuffer, 0, 0);
+            }
+
+            for (let i = 0; i <= 27; i++) {
+                progressText.innerText = `Generating Default Moon Phases...\nPhase ${i} / 27`;
+                drawPurePhase(i);
+                
+                const dataUrl = canvas.toDataURL('image/png');
+                const base64Data = dataUrl.split(',')[1];
+                zip.file(`moon_phase_${String(i).padStart(2, '0')}.png`, base64Data, {base64: true});
+                
+                await new Promise(resolve => setTimeout(resolve, 60));
+            }
+
+            draw(currentSelectedStep);
+
+            progressText.innerText = `Archiving ZIP File...\nPlease wait.`;
+            const content = await zip.generateAsync({type: 'blob'});
+            
+            const blobUrl = URL.createObjectURL(content);
+            triggerDownload(blobUrl, `moon_phase_28_matrix.zip`);
+            
+            setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
+            progressOverlay.style.display = 'none';
+        });
+
+        // 直接ドラッグハンドラ
         let isDragging = false;
         let lastMouseX = 0;
 
-        // シミュレーターの直接ドラッグ操作ロジック
         function handlePointerMove(e) {
             if (!isDragging) return;
             e.preventDefault();
 
             const clientX = e.touches ? e.touches[0].clientX : e.clientX;
             const deltaX = clientX - lastMouseX;
-            
-            // 時間の進み幅を一律の等速ではなく、直感的になるよう係数をマッピング
             const rotationSpeed = 0.5; 
             const angleChange = deltaX * rotationSpeed * (Math.PI / 180);
             
@@ -1029,7 +1053,6 @@
             draw(parseFloat(slider.value));
             lastMouseX = clientX;
         }
-
 
         simCanvas.addEventListener('mousedown', (e) => {
             isDragging = true;
