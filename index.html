@@ -489,24 +489,29 @@
             }
         }
 
-        // NASA正立基準の幾何学的な位置角計算（南中時を完全な0基準に固定化）
+        // NASA正立基準の幾何学的な位置角計算（過剰回転の抑制と回転方向の反転を修正）
         function calculateMoonTilt(phase, timeHour) {
+            // 月の時角（南中時を0とする角度モデル）の算出
             let moonHourPosition = timeHour - (phase / 28) * 24;
             while (moonHourPosition < -12) moonHourPosition += 24;
             while (moonHourPosition > 12) moonHourPosition -= 24;
 
+            // 時角をラジアンに変換 (1時間 = 15度)
             let H = moonHourPosition * 15 * (Math.PI / 180);
-            let lat = 35 * (Math.PI / 180);
-            let dec = 0 * (Math.PI / 180);
+            let lat = 35 * (Math.PI / 180); // 北緯35度
+            let dec = 0 * (Math.PI / 180);  // 赤緯0度
 
+            // 地平天球座標系における天頂位置角 (Parallactic Angle) の算出
             let denom = Math.tan(lat) * Math.cos(dec) - Math.sin(dec) * Math.cos(H);
             let parallacticAngle = 0;
             if (Math.abs(denom) > 0.0001) {
                 parallacticAngle = Math.atan2(Math.sin(H), denom);
             }
 
-            // 南中（H=0）において tiltRad が完全に 0（正立）になるよう位相変換を修正
-            let tiltRad = parallacticAngle - H;
+            // 【修正怪所】符号と基準軸の整合性を修正
+            // 南中（H=0）の瞬間に完全な 0（正立・ティコが真下）となり、
+            // 時間が進む（Hがプラスに増える）につれて、画像が時計回り（右）に倒れるように調整
+            let tiltRad = -parallacticAngle;
 
             return tiltRad;
         }
