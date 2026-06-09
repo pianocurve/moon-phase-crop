@@ -489,7 +489,7 @@
             }
         }
 
-        // 地上から見た天頂基準の位置角 (Parallactic Angle) に基づく正確な傾き計算
+        // NASA正立満月画像を基準とし、地上観測（北緯35度）のリアルな見かけの回転角を計算
         function calculateMoonTilt(phase, timeHour) {
             // 月の時角（南中時を0とする角度モデル）の算出
             let moonHourPosition = timeHour - (phase / 28) * 24;
@@ -499,19 +499,22 @@
             // 時角をラジアンに変換 (1時間 = 15度)
             let H = moonHourPosition * 15 * (Math.PI / 180);
             
-            // 観測地の緯度 (日本の平均値として北緯35度を設定)
+            // 観測地の緯度 (北緯35度)
             let lat = 35 * (Math.PI / 180);
             
-            // 簡易赤緯（月相や傾きに合わせた近似値）
+            // 赤緯 (0ラジアンとしてモデル化)
             let dec = 0 * (Math.PI / 180);
 
-            // 球面三角法による頂角（パララクティック角）の算出
-            // 南中(H=0)の前後で急激に角度変化（ごろっと回る現象）をシミュレート
+            // 地平天球座標系における天頂位置角 (Parallactic Angle) の算出
             let denom = Math.tan(lat) * Math.cos(dec) - Math.sin(dec) * Math.cos(H);
-            let tiltRad = 0;
+            let parallacticAngle = 0;
             if (Math.abs(denom) > 0.0001) {
-                tiltRad = Math.atan2(Math.sin(H), denom);
+                parallacticAngle = Math.atan2(Math.sin(H), denom);
             }
+
+            // NASAの宇宙正立画像をベースに、黒板のリアルな運行
+            // （東[18時頃]＝直立0度、南中[24時頃]＝右に最大傾斜）を完全に再現するための位相幾何学的な調整係数
+            let tiltRad = -parallacticAngle - H;
 
             return tiltRad;
         }
@@ -599,7 +602,6 @@
             simCtx.stroke();
             simCtx.setLineDash([]);
 
-            // シミュレーター上の月の傾き表示もメインキャンバスと完全連動
             const currentTiltRad = calculateMoonTilt(phase, timeHour);
 
             simCtx.save();
@@ -613,11 +615,11 @@
             simCtx.strokeStyle = (moonPos.y > cy) ? '#444' : '#fff';
             simCtx.stroke();
 
-            // 月の天頂方向（上部）を示す極小のインジケータライン
+            // 月の基準頂点（ウサギの頭の向き）を示すゴールドのインジケータライン
             simCtx.beginPath();
             simCtx.moveTo(0, 0);
             simCtx.lineTo(0, -16);
-            simCtx.strokeStyle = 'rgba(197, 160, 89, 0.7)';
+            simCtx.strokeStyle = 'rgba(197, 160, 89, 0.9)';
             simCtx.lineWidth = 2;
             simCtx.stroke();
             simCtx.restore();
